@@ -30,6 +30,9 @@ app.use("/api/campaion", require("./routes/CampaionRoutes"));
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/events", require("./routes/eventRoutes"));
 app.use("/api/otp", require("./routes/otpRoutes"));
+// app.use("/api/participants", participantRoutes);
+app.use("/api/participants", require("./routes/participantRoutes"));
+
 
 
 module.exports = app;
