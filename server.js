@@ -32,6 +32,7 @@ app.use("/api/events", require("./routes/eventRoutes"));
 app.use("/api/otp", require("./routes/otpRoutes"));
 // app.use("/api/participants", participantRoutes);
 app.use("/api/participants", require("./routes/participantRoutes"));
+app.use("/api/groups", require("./routes/groupsRoutes"));
 
 
 
