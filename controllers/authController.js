@@ -1,20 +1,21 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const sendEmail = require("../utils/sendEmail"); // Make sure this function sends emails
+const sendEmail = require("../utils/sendEmail");
 
-/* ================= REGISTER ================= */
 /* ================= REGISTER ================= */
 exports.register = async (req, res) => {
   try {
     const { name, email, password, confirmPassword, role } = req.body;
 
-    if (password !== confirmPassword)
+    if (password !== confirmPassword) {
       return res.status(400).json({ message: "Passwords do not match" });
+    }
 
-    const userExists = await User.findOne({ email });
-    if (userExists)
+    const exists = await User.findOne({ email });
+    if (exists) {
       return res.status(400).json({ message: "User already exists" });
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -22,39 +23,35 @@ exports.register = async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      role: role || "user",
+      role: role || "user"
     });
 
-    // ✅ SEND REGISTER EMAIL
     await sendEmail({
       to: email,
-      subject: "Welcome to Auth App 🎉",
-      text: `Hi ${name},
-
-Your account has been successfully created.
-
-You can now log in using your registered email.
-
-Thank you for joining us!
-`,
+      subject: "Welcome 🎉",
+      text: `Hi ${name}, your account has been created successfully.`
     });
 
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+
     res.status(201).json({
-      message: "Registration successful. Email sent.",
+      message: "Registration successful",
+      token,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role,
-      },
+        role: user.role
+      }
     });
-
-  } catch (error) {
-    console.error("REGISTER ERROR:", error);
+  } catch (err) {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 
 /* ================= LOGIN ================= */
 exports.login = async (req, res) => {
@@ -81,10 +78,10 @@ exports.login = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role,
-      },
+        role: user.role
+      }
     });
-  } catch (error) {
+  } catch (err) {
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -98,30 +95,23 @@ exports.forgotPassword = async (req, res) => {
     if (!user)
       return res.status(404).json({ message: "User not found" });
 
-    const otp = Math.floor(100000 + Math.random() * 900000);
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     user.otp = otp;
-    user.otpExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
+    user.otpExpire = Date.now() + 10 * 60 * 1000;
     await user.save();
 
     await sendEmail({
       to: email,
       subject: "Password Reset OTP",
-      text: `Your OTP is ${otp}. It is valid for 10 minutes.`,
+      text: `Your OTP is ${otp}. Valid for 10 minutes.`
     });
 
-    // ✅ NO OTP IN RESPONSE
-    res.status(200).json({
-      message: "OTP sent to your registered email",
-    });
-
-  } catch (error) {
-    console.error(error);
+    res.json({ message: "OTP sent to email" });
+  } catch (err) {
     res.status(500).json({ message: "Server error" });
   }
 };
-
-
 
 /* ================= RESET PASSWORD ================= */
 exports.resetPassword = async (req, res) => {
@@ -134,12 +124,12 @@ exports.resetPassword = async (req, res) => {
     const user = await User.findOne({
       email,
       otp,
-      otpExpire: { $gt: Date.now() },
+      otpExpire: { $gt: Date.now() }
     });
 
-    if (!user) return res.status(400).json({ message: "Invalid or expired OTP" });
+    if (!user)
+      return res.status(400).json({ message: "Invalid or expired OTP" });
 
-    // Hash new password
     user.password = await bcrypt.hash(newPassword, 10);
     user.otp = undefined;
     user.otpExpire = undefined;
@@ -147,7 +137,20 @@ exports.resetPassword = async (req, res) => {
     await user.save();
 
     res.json({ message: "Password reset successful" });
-  } catch (error) {
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* ================= GET PROFILE (AUTH ONLY) ================= */
+exports.getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("-password");
+    if (!user)
+      return res.status(404).json({ message: "User not found" });
+
+    res.json(user);
+  } catch (err) {
     res.status(500).json({ message: "Server error" });
   }
 };

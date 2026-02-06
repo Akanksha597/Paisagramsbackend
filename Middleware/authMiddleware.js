@@ -1,41 +1,40 @@
+// const jwt = require("jsonwebtoken");
+
+// exports.protect = (req, res, next) => {
+//   try {
+//     const token = req.headers.authorization?.split(" ")[1];
+//     if (!token) {
+//       return res.status(401).json({ message: "Not authorized" });
+//     }
+
+//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+//     req.user = decoded; // contains userId
+//     next();
+//   } catch (error) {
+//     res.status(401).json({ message: "Invalid token" });
+//   }
+// };
 const jwt = require("jsonwebtoken");
-const User = require("../models/User"); // ✅ ADD THIS
+const User = require("../models/User");
 
 exports.protect = async (req, res, next) => {
-  let token = req.headers.authorization?.split(" ")[1];
-
-  if (!token) {
-    return res.status(401).json({ message: "Not authorized" });
-  }
-
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // decoded = { id, role, tokenVersion }
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "Not authorized" });
+    }
 
-    const user = await User.findById(decoded.id);
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const user = await User.findById(decoded.id).select("-password");
     if (!user) {
       return res.status(401).json({ message: "User not found" });
     }
 
-    // ✅ IMPORTANT CHANGE (LOGOUT SUPPORT)
-    if (decoded.tokenVersion !== user.tokenVersion) {
-      return res.status(401).json({ message: "Token expired. Please login again." });
-    }
-
-    // attach full user (better than decoded)
-    req.user = user;
-
+    req.user = user; // ✅ FULL USER
     next();
   } catch (error) {
-    return res.status(401).json({ message: "Invalid token" });
+    res.status(401).json({ message: "Invalid token" });
   }
-};
-
-exports.authorizeRoles = (...roles) => {
-  return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ message: "Access denied" });
-    }
-    next();
-  };
 };
